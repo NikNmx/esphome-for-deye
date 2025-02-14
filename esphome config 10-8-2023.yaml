@@ -1,8 +1,8 @@
 substitutions:
-  name: deye12                                                       #name in ESPhome
+  name: deye10ft                                                       #name in ESPhome
   device_description: "Esphome component for Deye sun-12k-sg04lp3"   #Description in ESPhome
-  modbus_controller_id: sg04lp3                                      #just a random name for the modbus controler
-  device_type: sun12k                                                #all entities in Home Assistant will start with this text to help identify the entitys 
+  modbus_controller_id: modbus9600_01_                                      #just a random name for the modbus controler
+  device_type: sun12k                                                #all entities in Home Assistant will start with this text to help identify the entitys
 
 esphome:
   name: ${name}
@@ -17,8 +17,11 @@ logger:
 
 # Enable Home Assistant API
 api:
+  password: "1111qQ1111qQ,@,@"
 
 ota:
+  - platform: esphome
+    password: "1111qQ1111qQ,@,@"
 
 wifi:
   ssid: !secret wifi_ssid
@@ -27,6 +30,14 @@ wifi:
     ssid: ${name}
 
 captive_portal:
+
+web_server: 
+  port: 8080
+  auth:
+    username: admin
+    password: 1111qQ1111qQ,@,@
+  log: false
+  local: true  
 
 uart:
   id: mod_bus
@@ -37,7 +48,8 @@ uart:
  
 modbus:
   id: modbus1
-# flow_control_pin: 4 #for use when you use a rs485 board without auto flow control. Like the rs485 max board.
+  flow_control_pin: 4
+  #for use when you use a rs485 board without auto flow control. Like the rs485 max board.
  
 modbus_controller:
   - id: ${modbus_controller_id}
@@ -540,6 +552,20 @@ sensor:
       - multiply: 0.1
     value_type: U_WORD  
  
+  - platform: modbus_controller            # 526 Day Load Energy
+    modbus_controller_id: ${modbus_controller_id}
+    name: "${device_type} Day Load Energy"
+    id: ${device_type}_day_load_energy
+    register_type: holding
+    address: 526
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 2
+    device_class: energy
+    state_class: total_increasing
+    filters:
+      - multiply: 0.1
+    value_type: U_WORD
+
   - platform: modbus_controller
     modbus_controller_id: ${modbus_controller_id}
     name: "${device_type}-Daily Production"
@@ -945,6 +971,34 @@ sensor:
     value_type: U_DWORD_R
     filters:
       - multiply: 0.1
+
+  - platform: modbus_controller            # 514 Day Battery Charge
+    modbus_controller_id: ${modbus_controller_id}
+    name: "${device_type} Day Battery Charge"
+    id: ${device_type}_esphome_day_battery_charge
+    register_type: holding
+    address: 514
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    device_class: energy
+    state_class: total_increasing
+    value_type: U_WORD
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller            # 515 Day Battery Discharge
+    modbus_controller_id: ${modbus_controller_id}
+    name: "${device_type} Day Battery Discharge"
+    id: ${device_type}_esphome_day_battery_discharge
+    register_type: holding
+    address: 515
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    device_class: energy
+    state_class: total_increasing
+    value_type: U_WORD
+    filters:
+      - multiply: 0.1    
  
   - platform: modbus_controller
     modbus_controller_id: ${modbus_controller_id}
