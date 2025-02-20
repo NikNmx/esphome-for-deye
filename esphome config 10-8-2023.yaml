@@ -17,11 +17,11 @@ logger:
 
 # Enable Home Assistant API
 api:
-  password: "1111qQ1111qQ,@,@"
+  password: !secret api_password
 
 ota:
   - platform: esphome
-    password: "1111qQ1111qQ,@,@"
+    password: !secret ota_password
 
 wifi:
   ssid: !secret wifi_ssid
@@ -35,7 +35,7 @@ web_server:
   port: 8080
   auth:
     username: admin
-    password: 1111qQ1111qQ,@,@
+    password: !secret web_password
   log: false
   local: true  
 
