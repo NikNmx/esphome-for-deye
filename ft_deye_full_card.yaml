@@ -6,10 +6,22 @@ substitutions:
   devicename: deye10ft
   device_description: "Sunsynk RS485 Logger"
   friendly_name: "SunSynk"
+  TELEGRAM_BOT_TOKEN: !secret dTELEGRAM_BOT_TOKEN
+  chat_id: !secret dchat_id
+  trigger1: "1"  #only for debug
+  apikey: !secret sapikey
 
 esphome:
   name: ${devicename}
   comment: '${device_description}'
+  on_boot:
+    - priority: 800  # -100 is after reboot and settings WIFI + Pins
+      then:    #setup some global variables
+        - light.turn_on: Led2
+  #on_boot:
+    - priority: -100  # -100 is after reboot and settings WIFI + Pins
+      then:    #setup some global variables
+        - light.turn_off: Led2
   
 esp32:
   board: nodemcu-32s
@@ -19,6 +31,29 @@ esp32:
 # Enable logging
 logger:
   ###baud_rate: 0
+globals:
+#blink couter 
+  - id: var1  #var1
+    type: int
+    restore_value: no
+    initial_value: "0"  
+
+  - id: var_grid_status  # 1 - grid ok, 0 - grid absent  
+    type: int
+    restore_value: no
+    initial_value: "0" 
+
+  - id: var_grid_status_change_time  # 1 - grid ok, 0 - grid absent  
+    type: float
+    restore_value: no
+    initial_value: "0" 
+
+  - id: var_grid_curent_power  # 1 - grid ok, 0 - grid absent  
+    type: float
+    restore_value: no
+    initial_value: "0" 
+  
+   
 
 # Enable Home Assistant API
 api:
@@ -56,7 +91,12 @@ web_server:
     username: !secret web_user
     password: !secret web_password
   log: false
-  local: true  
+  local: true
+
+http_request:
+  useragent: esphome/device
+  timeout: 10s
+  verify_ssl: false    
 
 output:  #internal Led output
   - platform: ledc #pin D4 for Led1 
@@ -82,9 +122,6 @@ light: #components for LED's turn ON and OFF #internal Led
     id: Led2
     output: led2_output
 
-# Enable time component to reset energy at midnight
-# https://esphome.io/components/time.html#home-assistant-time-source
-
 time:
   - platform: homeassistant
     id: homeassistant_time
@@ -107,6 +144,65 @@ time:
     ###                  //ESP_LOGI("main", "Current time is : %i/%i/%i %i:%i:%i", currenttime.day_of_month, currenttime.month, currenttime.year, currenttime.hour, currenttime.minute, currenttime.second);
     ###      - delay: 1s
     ###      - light.turn_off: Led1            
+  - platform: sntp
+    id: sntp_time
+    on_time:
+      - seconds: /1  #every second
+        then: 
+          #- lambda: |-
+
+script:
+  - id: script_send_message_grid # run steps after (on) reboot device 
+    mode: single
+    then:
+      #- script.execute: script_grid_status
+      - delay: 1s
+      - http_request.post:
+          url: "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+          headers:
+            Content-Type: application/json
+          json:
+            chat_id: ${chat_id}
+            text: !lambda |-
+                    if (id(var_grid_status) ) {
+                    //id(global_var_flashing) = 0;
+                    return " ✅Мережа 220 присутня😀!!!" ;
+                    } else {
+                    //id(global_var_flashing) = 1;
+                    return " ❌Мережа 220 вимкнена😠!!!" ;
+                    }                  
+
+  - id: script_grid_status 
+    mode: single
+    #writes to $global_var_grid_OK "1" if grid OK, else writes "0"                 
+    then:
+      - lambda: |-
+                //# id(switch1_inversion).turn_off(); off inversion 
+                //if (id(Binary_sensor_grid_status).state ^ id(switch1_inversion).state ) {
+                //  id(global_var_grid_OK) = 1;
+                //  id(global_var_flashing) = 0;
+                //} else {
+                //  id(global_var_grid_OK) = 0;
+                //  id(global_var_flashing) = 1;
+                //}
+#disabled 
+  #- id: script_everyday_control_message # run every day at 8:30AM
+  #  then:
+  #    - http_request.post:
+  #        url: "https://api.telegram.org/bot${debug_TELEGRAM_BOT_TOKEN}/sendMessage"
+  #        headers:
+  #          Content-Type: application/json
+  #        json:
+  #          chat_id: ${debug_chat_id}
+  #          text: !lambda |-
+  #                         if (id(global_var_grid_OK) ) {
+  #                         id(global_var_flashing) = 0;
+  #                         return " ✅ Control message: Device's Status OK! ✅Grid is ON😀!!!" ;
+  #                         } else {
+  #                         id(global_var_flashing) = 1;
+  #                         return " ✅ Control message: Device's Status OK! ❌Grid is OFF😠!!!" ;
+  #                         }
+  
 
 
 uart:
@@ -185,7 +281,7 @@ sensor:
       - multiply: 0.01
     value_type: U_WORD
 
-  - platform: modbus_controller            # 588 Battery SOC
+  - platform: modbus_controller            # 588 Battery SOC @nm
     modbus_controller_id: sunsynk
     name: "${friendly_name} Battery SOC"
     id: sunsynk_esphome_battery_soc
@@ -195,6 +291,10 @@ sensor:
     accuracy_decimals: 0
     device_class: battery
     value_type: U_WORD
+    lambda: |-
+            ESP_LOGI("","@MYMYMYLambda incoming value=%f - data array size is %d",x,data.size());
+            ESP_LOGI("@MYMYMY","@MYMYMYSensor properties: adress = 0x%X, offset = 0x%X value type=%d",item->start_address,item->offset,item->sensor_value_type);
+            return x ;             
 
   - platform: modbus_controller            # 590 Battery Power
     modbus_controller_id: sunsynk
@@ -450,7 +550,7 @@ sensor:
 
      ############################################### LOAD ################################################
 
-  - platform: modbus_controller            # 653 Load Power
+  - platform: modbus_controller            # 653 Load Power  
     modbus_controller_id: sunsynk
     name: "${friendly_name} Load Power"
     id: sunsynk_esphome_load_power
@@ -461,6 +561,9 @@ sensor:
     device_class: power
     state_class: measurement
     value_type: S_WORD
+    #lambda: |-
+    #        ESP_LOGI("","MYMYMY Lambda incoming value=%f - data array size is %d",x,data.size());
+    #        return x ;
 
   - platform: modbus_controller            # 650 Load L1 Power
     modbus_controller_id: sunsynk
